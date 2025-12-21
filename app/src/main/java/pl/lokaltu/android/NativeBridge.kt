@@ -5,7 +5,10 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import org.json.JSONObject
 
-class NativeBridge(private val webView: WebView) {
+class NativeBridge(
+    private val webView: WebView,
+    private val onMessage: (type: String) -> Unit
+) {
 
     @JavascriptInterface
     fun postMessage(json: String) {
@@ -14,44 +17,19 @@ class NativeBridge(private val webView: WebView) {
             val type = message.getString("type")
 
             Log.d("NativeBridge", "Received: $type")
+            onMessage(type)
 
-            when (type) {
-                "APP_READY" -> handleAppReady()
-                "REQUEST_NFC" -> handleNFCRequest()
-                "REGISTER_PUSH_TOKEN" -> registerPushToken()
-                "PERMISSION_REQUEST" -> {
-                    val permission = message.getString("permission")
-                    handlePermission(permission)
-                }
-                else -> Log.w("NativeBridge", "Unknown message type: $type")
-            }
         } catch (e: Exception) {
             Log.e("NativeBridge", "Error parsing message", e)
         }
     }
 
-    private fun handleAppReady() {
-        Log.d("NativeBridge", "App ready, sending handshake response")
-        // Send acknowledgement back to web
-        sendToWeb("APP_READY_ACK")
+    fun sendNfcResult(data: String) {
+        sendToWeb("NFC_RESULT", """{"payload":"$data"}""")
     }
 
-    private fun handleNFCRequest() {
-        // Your NFC handling logic
-        // When tag is detected:
-        sendToWeb("NFC_RESULT", """{"payload":"tag_data_here"}""")
-    }
-
-    private fun registerPushToken() {
-        // Your FCM token logic
-        val token = "fcm_token_here"
-        sendToWeb("REGISTER_PUSH_TOKEN", """{"token":"$token"}""")
-    }
-
-    private fun handlePermission(permission: String) {
-        // Your permission handling
-        sendToWeb("PERMISSION_RESULT",
-            """{"permission":"$permission","granted":true}""")
+    fun sendNfcError(error: String) {
+        sendToWeb("NFC_ERROR", """{"error":"$error"}""")
     }
 
     private fun sendToWeb(type: String, payload: String = "{}") {
@@ -66,21 +44,19 @@ class NativeBridge(private val webView: WebView) {
         }
 
         val json = message.toString()
-
         val script = """
             (function() {
-                const message = JSON.parse('${json.replace("'", "'''")}');
-                if (message.type === 'APP_READY_ACK') {
-                    window.__nativeReady?.(true);
+                try {
+                    const message = $json;
+                    window.__nativeDispatch?.(message);
+                } catch(e) {
+                    console.error('[Bridge]', e);
                 }
-                window.__nativeDispatch?.(message);
             })();
         """.trimIndent()
 
         webView.post {
-            webView.evaluateJavascript(script) { result ->
-                Log.d("NativeBridge", "Executed: $result")
-            }
+            webView.evaluateJavascript(script, null)
         }
     }
 }
