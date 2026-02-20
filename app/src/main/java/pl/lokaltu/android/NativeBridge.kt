@@ -2,61 +2,84 @@ package pl.lokaltu.android
 
 import android.util.Log
 import android.webkit.JavascriptInterface
-import android.webkit.WebView
 import org.json.JSONObject
 
 class NativeBridge(
-    private val webView: WebView,
-    private val onMessage: (type: String) -> Unit
+    private val onAction: (action: String, payload: JSONObject?) -> Unit,
+    private val sender: (json: String) -> Unit
 ) {
 
+    /**
+     * Entry point for messages from the web side (WebView @JavascriptInterface)
+     */
     @JavascriptInterface
     fun postMessage(json: String) {
+        handleIncomingMessage(json)
+    }
+
+    /**
+     * Shared logic for handling messages from either WebView or TWA
+     */
+    fun handleIncomingMessage(json: String) {
         try {
             val message = JSONObject(json)
-            val type = message.getString("type")
+            val action = when {
+                message.has("type") -> message.getString("type")
+                message.has("action") -> message.getString("action")
+                else -> ""
+            }
 
-            Log.d("NativeBridge", "Received: $type")
-            onMessage(type)
+            Log.d("NativeBridge", "Received Action: $action")
+            onAction(action, message)
 
         } catch (e: Exception) {
-            Log.e("NativeBridge", "Error parsing message", e)
+            Log.e("NativeBridge", "Error parsing message: $json", e)
         }
     }
 
-    fun sendNfcResult(data: String) {
-        sendToWeb("NFC_RESULT", """{"payload":"$data"}""")
+    fun sendNfcResult(tagId: String, content: String? = null) {
+        sendToWeb("NFC_TAG_DETECTED", JSONObject().apply {
+            put("id", tagId)
+            put("content", content ?: tagId)
+        })
     }
 
     fun sendNfcError(error: String) {
-        sendToWeb("NFC_ERROR", """{"error":"$error"}""")
+        sendToWeb("NFC_ERROR", JSONObject().apply {
+            put("message", error)
+        })
     }
 
-    private fun sendToWeb(type: String, payload: String = "{}") {
+    fun sendNfcReady() {
+        sendToWeb("NFC_READY")
+    }
+
+    fun sendCameraResult(base64Image: String) {
+        sendToWeb("CAMERA_RESULT", JSONObject().apply {
+            put("image", base64Image)
+        })
+    }
+
+    fun sendCameraError(error: String) {
+        sendToWeb("CAMERA_ERROR", JSONObject().apply {
+            put("message", error)
+        })
+    }
+
+    fun sendBridgeReady() {
+        sendToWeb("BRIDGE_READY", JSONObject().apply {
+            put("status", "connected")
+            put("timestamp", System.currentTimeMillis())
+        })
+    }
+
+    fun sendToWeb(type: String, payload: JSONObject = JSONObject()) {
         val message = JSONObject()
         message.put("type", type)
-
-        if (payload != "{}") {
-            val payloadJson = JSONObject(payload)
-            payloadJson.keys().forEach { key ->
-                message.put(key, payloadJson.get(key))
-            }
-        }
+        message.put("payload", payload)
 
         val json = message.toString()
-        val script = """
-            (function() {
-                try {
-                    const message = $json;
-                    window.__nativeDispatch?.(message);
-                } catch(e) {
-                    console.error('[Bridge]', e);
-                }
-            })();
-        """.trimIndent()
-
-        webView.post {
-            webView.evaluateJavascript(script, null)
-        }
+        Log.d("NativeBridge", "Sending to Web: $json")
+        sender(json)
     }
 }

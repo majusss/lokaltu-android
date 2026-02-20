@@ -18,6 +18,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // App Domain Configuration (like ENV)
+        val domain = "desktop-cimojvc.tailb6983f.ts.net"
+        manifestPlaceholders["app_domain"] = domain
+        buildConfigField("String", "APP_DOMAIN", "\"$domain\"")
     }
 
     buildTypes {
@@ -38,6 +43,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -50,8 +56,13 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-
-    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.2.0-alpha01")
+    implementation(libs.androidx.appcompat)
+    implementation(libs.material)
+    implementation(libs.androidx.activity)
+    implementation(libs.androidx.constraintlayout)
+    implementation(libs.androidx.browser)
+    //noinspection UseTomlInstead
+    implementation(libs.androidbrowserhelper)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
