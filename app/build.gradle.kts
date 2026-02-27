@@ -6,9 +6,7 @@ plugins {
 
 android {
     namespace = "pl.lokaltu.android"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "pl.lokaltu.android"
@@ -19,8 +17,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // App Domain Configuration (like ENV)
-        val domain = "desktop-cimojvc.tailb6983f.ts.net"
+        val domain = "lokaltu.rvyks.codes"
         manifestPlaceholders["app_domain"] = domain
         buildConfigField("String", "APP_DOMAIN", "\"$domain\"")
     }

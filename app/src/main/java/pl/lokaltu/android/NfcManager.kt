@@ -66,11 +66,9 @@ class NfcManager(
         val tagIdAsHex = tag.id.joinToString("") { "%02X".format(it) }
         Log.d("NfcManager", "Tag discovered: $tagIdAsHex")
 
-        // Auto-stop scanning after detection
         isNfcScanRequested = false
         disableNfcReader()
 
-        // Try to read NDEF payload
         val ndef = Ndef.get(tag)
         if (ndef != null) {
             try {
@@ -97,7 +95,6 @@ class NfcManager(
             }
         }
 
-        // No NDEF or error – just return the raw tag ID
         bridge.sendNfcResult(tagIdAsHex, null)
     }
 }

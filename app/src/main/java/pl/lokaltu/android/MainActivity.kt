@@ -9,6 +9,7 @@ import android.os.Message
 import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -48,6 +49,7 @@ class MainActivity : ComponentActivity() {
 
     private var geolocationCallback: GeolocationPermissions.Callback? = null
     private var geolocationOrigin: String? = null
+    private var filePathCallback: ValueCallback<Array<Uri>>? = null
 
     private val locationPermissionRequest = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -61,6 +63,14 @@ class MainActivity : ComponentActivity() {
     private val takePictureLauncher = registerForActivityResult(
         ActivityResultContracts.TakePicturePreview()
     ) { bitmap -> cameraManager.handleCameraResult(bitmap) }
+
+    private val fileChooserLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val results = WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
+        filePathCallback?.onReceiveValue(results)
+        filePathCallback = null
+    }
 
     private val appUrl = "https://${BuildConfig.APP_DOMAIN}/"
 
@@ -182,12 +192,24 @@ class MainActivity : ComponentActivity() {
                             if (url == null) return false
 
                             Log.d("WebView", "Loading URL: $url")
+                            val uri = Uri.parse(url)
+
+                            // Handle PDF files or other files that should be opened externally
+                            if (url.endsWith(".pdf", ignoreCase = true)) {
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, uri)
+                                    startActivity(intent)
+                                    return true
+                                } catch (e: Exception) {
+                                    Log.e("WebView", "Error opening external file", e)
+                                }
+                            }
 
                             if (url.startsWith("lokaltu://")) {
                                 authHandler.handleAuthRedirect(
                                     Intent(
                                         Intent.ACTION_VIEW,
-                                        Uri.parse(url)
+                                        uri
                                     )
                                 )
                                 return true
@@ -206,20 +228,73 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
+                            // Handle external apps and navigation
+                            if (url.startsWith("tel:") ||
+                                url.startsWith("mailto:") ||
+                                url.startsWith("geo:") ||
+                                url.startsWith("google.navigation:") ||
+                                url.contains("maps.google.com") ||
+                                url.contains("google.com/maps")
+                            ) {
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, uri)
+                                    startActivity(intent)
+                                    return true
+                                } catch (e: Exception) {
+                                    Log.e("WebView", "Error opening external app", e)
+                                    if (!url.startsWith("http")) return true
+                                }
+                            }
+
                             if (url.contains("accounts.google.com") ||
                                 url.contains("google.com/accounts") ||
                                 (url.contains("clerk") && url.contains("oauth"))
                             ) {
                                 val customTabsIntent = CustomTabsIntent.Builder().build()
-                                customTabsIntent.launchUrl(context, Uri.parse(url))
+                                customTabsIntent.launchUrl(context, uri)
                                 return true
                             }
 
-                            return !url.startsWith("http://") && !url.startsWith("https://")
+                            // Fallback for non-http(s) schemes
+                            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, uri)
+                                    startActivity(intent)
+                                    return true
+                                } catch (e: Exception) {
+                                    return false
+                                }
+                            }
+
+                            return false
                         }
                     }
 
                     webChromeClient = object : WebChromeClient() {
+                        override fun onCreateWindow(
+                            view: WebView?,
+                            isDialog: Boolean,
+                            isUserGesture: Boolean,
+                            resultMsg: Message?
+                        ): Boolean {
+                            val newWebView = WebView(context)
+                            newWebView.webViewClient = object : WebViewClient() {
+                                override fun shouldOverrideUrlLoading(
+                                    view: WebView?,
+                                    url: String?
+                                ): Boolean {
+                                    val uri = Uri.parse(url)
+                                    val intent = Intent(Intent.ACTION_VIEW, uri)
+                                    context.startActivity(intent)
+                                    return true
+                                }
+                            }
+                            val transport = resultMsg?.obj as? WebView.WebViewTransport
+                            transport?.webView = newWebView
+                            resultMsg?.sendToTarget()
+                            return true
+                        }
+
                         override fun onGeolocationPermissionsShowPrompt(
                             origin: String,
                             callback: GeolocationPermissions.Callback
@@ -249,16 +324,36 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        override fun onCreateWindow(
-                            view: WebView?,
-                            isDialog: Boolean,
-                            isUserGesture: Boolean,
-                            resultMsg: Message?
+                        override fun onShowFileChooser(
+                            webView: WebView?,
+                            filePathCallback: ValueCallback<Array<Uri>>?,
+                            fileChooserParams: FileChooserParams?
                         ): Boolean {
-                            val transport = resultMsg?.obj as? WebView.WebViewTransport
-                            transport?.webView = view
-                            resultMsg?.sendToTarget()
+                            this@MainActivity.filePathCallback?.onReceiveValue(null)
+                            this@MainActivity.filePathCallback = filePathCallback
+
+                            try {
+                                val intent = fileChooserParams?.createIntent()
+                                if (intent != null) {
+                                    fileChooserLauncher.launch(intent)
+                                } else {
+                                    this@MainActivity.filePathCallback = null
+                                    return false
+                                }
+                            } catch (e: Exception) {
+                                this@MainActivity.filePathCallback = null
+                                return false
+                            }
                             return true
+                        }
+                    }
+
+                    setDownloadListener { url, _, _, _, _ ->
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            startActivity(intent)
+                        } catch (e: Exception) {
+                            Log.e("WebView", "Error in DownloadListener", e)
                         }
                     }
 
