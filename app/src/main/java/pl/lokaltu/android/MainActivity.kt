@@ -45,7 +45,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var bridge: NativeBridge
     private lateinit var nfcManager: NfcManager
     private lateinit var cameraManager: CameraManager
-    private lateinit var authHandler: AuthHandler
 
     private var geolocationCallback: GeolocationPermissions.Callback? = null
     private var geolocationOrigin: String? = null
@@ -98,10 +97,6 @@ class MainActivity : ComponentActivity() {
         // Initialize Managers
         nfcManager = NfcManager(this, bridge)
         cameraManager = CameraManager(bridge)
-        authHandler = AuthHandler(appUrl) { webView }
-
-        // Handle startup intent
-        intent?.let { authHandler.handleAuthRedirect(it) }
 
         setContent {
             Box(
@@ -172,12 +167,6 @@ class MainActivity : ComponentActivity() {
                     CookieManager.getInstance().setAcceptCookie(true)
                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 
-                    authHandler.pendingReloadUrl?.let { url ->
-                        Log.d("WebView", "Executing pending reload for $url")
-                        loadUrl(url)
-                        authHandler.clearPendingReload()
-                    }
-
                     val defaultUA = settings.userAgentString
                     val customUA = defaultUA
                         .replace("; wv", "")
@@ -202,29 +191,6 @@ class MainActivity : ComponentActivity() {
                                     return true
                                 } catch (e: Exception) {
                                     Log.e("WebView", "Error opening external file", e)
-                                }
-                            }
-
-                            if (url.startsWith("lokaltu://")) {
-                                authHandler.handleAuthRedirect(
-                                    Intent(
-                                        Intent.ACTION_VIEW,
-                                        uri
-                                    )
-                                )
-                                return true
-                            }
-
-                            if (url.startsWith("intent://")) {
-                                try {
-                                    val intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
-                                    if (intent != null) {
-                                        if (authHandler.handleAuthRedirect(intent)) return true
-                                        startActivity(intent)
-                                        return true
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e("WebView", "Error parsing intent URL: $url", e)
                                 }
                             }
 
@@ -393,7 +359,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        authHandler.handleAuthRedirect(intent)
     }
 
     override fun onDestroy() {

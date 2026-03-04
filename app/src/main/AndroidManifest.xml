@@ -31,25 +31,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Intent filter for Google Login Redirection -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="lokaltu" android:host="auth" />
-            </intent-filter>
-
-            <!-- Intent filter for Web App Redirection (App Links) -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="http" android:host="${app_domain}" />
-                <data android:scheme="https" android:host="${app_domain}" />
-                <data android:pathPrefix="/auth/sso-callback" />
-                <data android:pathPrefix="/auth/complete-profile" />
-                <data android:path="/" />
-            </intent-filter>
         </activity>
     </application>
 
