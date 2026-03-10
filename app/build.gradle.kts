@@ -58,8 +58,9 @@ dependencies {
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.browser)
-    //noinspection UseTomlInstead
     implementation(libs.androidbrowserhelper)
+
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -35,6 +35,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
@@ -343,7 +346,40 @@ class MainActivity : ComponentActivity() {
                 Log.d("Camera", "Web requested camera")
                 runOnUiThread { takePictureLauncher.launch(null) }
             }
+
+            "SCAN_QR" -> {
+                Log.d("QrScanner", "Web requested QR scan")
+                runOnUiThread { startQrScanner() }
+            }
         }
+    }
+
+    private fun startQrScanner() {
+        val options = GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+            .enableAutoZoom()
+            .build()
+
+        val scanner = GmsBarcodeScanning.getClient(this, options)
+
+        scanner.startScan()
+            .addOnSuccessListener { barcode ->
+                val rawValue = barcode.rawValue
+                if (rawValue != null) {
+                    Log.d("QrScanner", "QR code scanned: $rawValue")
+                    bridge.sendQrResult(rawValue)
+                } else {
+                    bridge.sendQrError("Nie udało się odczytać kodu QR.")
+                }
+            }
+            .addOnCanceledListener {
+                Log.d("QrScanner", "QR scan cancelled")
+                bridge.sendQrCancelled()
+            }
+            .addOnFailureListener { e ->
+                Log.e("QrScanner", "QR scan failed", e)
+                bridge.sendQrError(e.message ?: "Błąd skanowania kodu QR.")
+            }
     }
 
     override fun onResume() {

@@ -66,6 +66,22 @@ class NativeBridge(
         })
     }
 
+    fun sendQrResult(value: String) {
+        sendToWeb("QR_SCAN_RESULT", JSONObject().apply {
+            put("value", value)
+        })
+    }
+
+    fun sendQrError(error: String) {
+        sendToWeb("QR_SCAN_ERROR", JSONObject().apply {
+            put("message", error)
+        })
+    }
+
+    fun sendQrCancelled() {
+        sendToWeb("QR_SCAN_CANCELLED")
+    }
+
     fun sendBridgeReady() {
         sendToWeb("BRIDGE_READY", JSONObject().apply {
             put("status", "connected")
